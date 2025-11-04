@@ -9,7 +9,7 @@ from models.vc.vevo.vevo_utils import VevoInferencePipeline, save_audio
 
 # -------------------- User Paths --------------------
 # Path to your Vevo snapshot folder in Google Drive
-VEVO_ROOT = "/content/drive/MyDrive/Vevo/snapshots/7edf4640c400c20542aa39c45b63f60e6c7baba0"
+VEVO_ROOT = "/content/drive/MyDrive/Vevo/models--amphion--Vevo/snapshots/7edf4640c400c20542aa39c45b63f60e6c7baba0"
 
 # Configs (from the original repo)
 FMT_CFG_PATH = "./models/vc/vevo/config/Vq8192ToMels.json"
