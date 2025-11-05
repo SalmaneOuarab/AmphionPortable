@@ -43,9 +43,10 @@ def vevo_timbre(content_wav_path, reference_wav_path, output_path):
         timbre_ref_wav_path=reference_wav_path,
         flow_matching_steps=32,
     )
-    save_audio(gen_audio, output_path)
+    save_audio(gen_audio, output_path=output_path)
     print(f"Saved output audio at: {output_path}")
 
 # -------------------- Run Example --------------------
 if __name__ == "__main__":
     vevo_timbre(CONTENT_WAV_PATH, REFERENCE_WAV_PATH, OUTPUT_PATH)
+
