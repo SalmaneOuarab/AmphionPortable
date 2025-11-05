@@ -383,7 +383,7 @@ class VevoInferencePipeline:
                 reduced_masks, batch_first=True, padding_value=0
             )
             return reduced_codecs, reduced_masks
-    
+
     def random_mask_codec(self, codecs, codec_masks, ratio, mask_value):
         """
         Args:
@@ -569,7 +569,6 @@ class VevoInferencePipeline:
 
         return synthesized_audio
 
-    @torch.no_grad()
     def inference_fm(
         self,
         src_wav_path,
@@ -577,62 +576,49 @@ class VevoInferencePipeline:
         flow_matching_steps=32,
         display_audio=False,
     ):
-        # Load timbre reference
+        src_speech, src_speech24k, src_speech16k = load_wav(src_wav_path, self.device)
         timbre_ref_speech, timbre_ref_speech24k, timbre_ref_speech16k = load_wav(
             timbre_ref_wav_path, self.device
         )
 
-        # Handle either a .wav path or a .pt file containing cached source features
-        if isinstance(src_wav_path, str) and src_wav_path.endswith(".wav"):
-            # Case 1: WAV file — compute features live
-            src_speech, src_speech24k, src_speech16k = load_wav(src_wav_path, self.device)
-            src_hubert_codecs, _ = self.extract_hubert_codec(
-                self.content_style_tokenizer, src_speech16k, duration_reduction=False
-            )
-            if display_audio:
+        if display_audio:
+            print("-" * 20)
+            if src_wav_path == timbre_ref_wav_path:
+                print("Audio:")
+                display_audio_in_notebook(src_wav_path, rate=24000)
+            else:
                 print("Source audio:")
                 display_audio_in_notebook(src_speech, rate=24000)
+                print("Timbre Reference audio:")
+                display_audio_in_notebook(timbre_ref_speech, rate=24000)
+                print("-" * 20)
 
-        elif isinstance(src_wav_path, dict) and "hubert_codecs" in src_wav_path:
-            # Case 2: Pre-cached feature dictionary
-            src_hubert_codecs = src_wav_path["hubert_codecs"].to(self.device)
-            if display_audio:
-                print("Using cached source features.")
-
-        else:
-            raise ValueError("src_wav_path must be a .wav file path or a dict containing 'hubert_codecs'")
-
-        # Process timbre reference
+        ## Diffusion ##
+        src_hubert_codecs, _ = self.extract_hubert_codec(
+            self.content_style_tokenizer, src_speech16k, duration_reduction=False
+        )
         timbre_ref_hubert_codecs, _ = self.extract_hubert_codec(
             self.content_style_tokenizer, timbre_ref_speech16k, duration_reduction=False
         )
-
-        # Combine for diffusion input
         diffusion_input_codecs = torch.cat(
             [timbre_ref_hubert_codecs, src_hubert_codecs], dim=1
         )
 
-        # Predict mel features
+        # [1, T, D]
         predict_mel_feat = self.fmt_model.reverse_diffusion(
             cond=self.fmt_model.cond_emb(diffusion_input_codecs),
             prompt=self.extract_mel_feature(timbre_ref_speech24k),
             n_timesteps=flow_matching_steps,
         )
 
-        # Vocoder output
+        ## Vocoder and Display ##
+        # [1, 1, T] -> [1, T]
         synthesized_audio = (
             self.vocoder_model(predict_mel_feat.transpose(1, 2)).detach().cpu()
         )[0]
+        if display_audio:
+            # [T]
+            audio = synthesized_audio.numpy()[0]
+            display_audio_in_notebook(audio, rate=24000)
 
         return synthesized_audio
-
-    @torch.no_grad()
-    def extract_source_features(self, src_wav_path):
-        _, speech24k, speech16k = load_wav(src_wav_path, self.device)
-        hubert_codecs, _ = self.extract_hubert_codec(
-            self.content_style_tokenizer, speech16k, duration_reduction=False
-        )
-        return {
-            "hubert_codecs": hubert_codecs.cpu()
-        }
-
